@@ -11,8 +11,54 @@ struct GeneralSettingsView: View {
 
     private let permissionTimer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
+    @ObservedObject private var updater = UpdateChecker.shared
+
     var body: some View {
         Form {
+            Section("About & Updates") {
+                LabeledContent("Version") {
+                    Text("v\(UpdateChecker.currentVersion)")
+                        .foregroundStyle(.secondary)
+                }
+                LabeledContent("Updates") {
+                    HStack(spacing: 8) {
+                        switch updater.status {
+                        case .idle:
+                            Button("Check for Updates") { Task { await updater.check() } }
+                                .controlSize(.small)
+                        case .checking:
+                            ProgressView().controlSize(.small)
+                            Text("Checking…").font(.callout).foregroundStyle(.secondary)
+                        case .upToDate:
+                            Label("Up to date", systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green).font(.callout)
+                            Button("Check Again") { Task { await updater.check() } }
+                                .controlSize(.small)
+                        case .available(let version):
+                            Text("v\(version) available").font(.callout)
+                            Button("Install Update") { Task { await updater.installUpdate() } }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                        case .downloading:
+                            ProgressView().controlSize(.small)
+                            Text("Downloading…").font(.callout).foregroundStyle(.secondary)
+                        case .installing:
+                            ProgressView().controlSize(.small)
+                            Text("Installing — the app will relaunch…").font(.callout).foregroundStyle(.secondary)
+                        case .failed(let message):
+                            Label(message, systemImage: "xmark.circle.fill")
+                                .foregroundStyle(.orange).font(.callout)
+                            Button("Retry") { Task { await updater.check() } }
+                                .controlSize(.small)
+                        }
+                    }
+                }
+                SecureField("GitHub token (repo is private — fine-grained, read-only)", text: $settings.githubToken)
+                Text("Create one at github.com → Settings → Developer settings → Fine-grained tokens, with read-only Contents access to David-Scheele/justenter. Stored in the Keychain.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Shortcuts") {
                 LabeledContent("Start / stop dictation") {
                     KeyRecorderView(hotkey: $settings.recordHotkey)

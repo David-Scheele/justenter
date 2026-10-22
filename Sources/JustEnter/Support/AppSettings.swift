@@ -53,6 +53,10 @@ final class AppSettings: ObservableObject {
     @Published var formality: Double {
         didSet { defaults.set(formality, forKey: "formality") }
     }
+    /// Fine-grained GitHub token (read-only) for update checks — the repo is private.
+    @Published var githubToken: String {
+        didSet { Keychain.set(githubToken, for: "github-token") }
+    }
     @Published var aiBackend: AIBackend {
         didSet { defaults.set(aiBackend.rawValue, forKey: "aiBackend") }
     }
@@ -86,6 +90,7 @@ final class AppSettings: ObservableObject {
         autoSwitchModes = defaults.object(forKey: "autoSwitchModes") as? Bool ?? true
         playSounds = defaults.object(forKey: "playSounds") as? Bool ?? true
         formality = defaults.object(forKey: "formality") as? Double ?? 0.5
+        githubToken = Keychain.get("github-token") ?? ""
         aiBackend = AIBackend(rawValue: defaults.string(forKey: "aiBackend") ?? "") ?? .apple
         ollamaModel = defaults.string(forKey: "ollamaModel") ?? "gpt-oss:20b"
         pauseMediaWhileDictating = defaults.object(forKey: "pauseMediaWhileDictating") as? Bool ?? true

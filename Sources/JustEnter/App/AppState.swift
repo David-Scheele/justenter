@@ -73,6 +73,11 @@ final class AppState: ObservableObject {
         // Prewarm the speech model in the background so the first dictation
         // doesn't sit in "Loading model…".
         warmUpEngine()
+
+        // Quiet update check at launch; result shows in Settings and the menu.
+        Task {
+            await UpdateChecker.shared.check()
+        }
     }
 
     /// Downloads/loads the currently selected speech model in the background.

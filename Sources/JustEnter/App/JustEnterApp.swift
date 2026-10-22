@@ -45,10 +45,18 @@ private struct MenuBarLabel: View {
 
 private struct MenuContent: View {
     @ObservedObject var appState: AppState
+    @ObservedObject private var updater = UpdateChecker.shared
     let openWindow: (String) -> Void
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
+        if let version = updater.availableVersion {
+            Button("Install Update v\(version)…") {
+                Task { await updater.installUpdate() }
+            }
+            Divider()
+        }
+
         Button(appState.phase == .recording ? "Stop & Insert" : "Start Dictation") {
             appState.toggleRecording()
         }
