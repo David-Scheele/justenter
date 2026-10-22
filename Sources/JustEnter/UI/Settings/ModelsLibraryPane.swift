@@ -13,6 +13,7 @@ struct ModelsLibraryPane: View {
     @State private var busyProgress: Double?
     @State private var busyLabel = ""
     @State private var errorMessage: String?
+    @State private var hoveredRowID: String?
 
     private enum ModelKind {
         case voice
@@ -135,21 +136,27 @@ struct ModelsLibraryPane: View {
     private func row(_ entry: Entry) -> some View {
         let active = isActive(entry)
         let installed = isInstalled(entry)
+        let selectable = installed || entry.builtIn
         HStack(spacing: 10) {
             HStack(spacing: 8) {
-                Button {
-                    select(entry)
-                } label: {
-                    Image(systemName: active ? "star.fill" : "star")
-                        .font(.system(size: 12))
-                        .foregroundStyle(active ? AnyShapeStyle(.yellow) : AnyShapeStyle(.tertiary))
-                }
-                .buttonStyle(.plain)
-                .disabled(!installed && !entry.builtIn)
-                .help(active ? "Active model" : "Make active")
+                // Radio indicator: one active model per group.
+                Image(systemName: active ? "inset.filled.circle" : "circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(active ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.tertiary))
+                    .frame(width: 18)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(entry.name)
-                        .font(.system(size: 13, weight: active ? .semibold : .regular))
+                    HStack(spacing: 6) {
+                        Text(entry.name)
+                            .font(.system(size: 13, weight: active ? .semibold : .regular))
+                        if active {
+                            Text("Active")
+                                .font(.system(size: 9.5, weight: .semibold))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(Color.accentColor.opacity(0.18), in: Capsule())
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
                     if let note = entry.note {
                         Text(note)
                             .font(.system(size: 10.5))
@@ -203,6 +210,24 @@ struct ModelsLibraryPane: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 9)
+        .background(
+            active ? AnyShapeStyle(Color.accentColor.opacity(0.08))
+                : hoveredRowID == entry.id && selectable ? AnyShapeStyle(.quaternary.opacity(0.5))
+                : AnyShapeStyle(.clear)
+        )
+        // The whole row selects the model; the trailing buttons still win on click.
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if selectable, !active {
+                select(entry)
+            }
+        }
+        .onHover { hovering in
+            hoveredRowID = hovering ? entry.id : (hoveredRowID == entry.id ? nil : hoveredRowID)
+        }
+        .help(selectable
+            ? (active ? "Active model" : "Click to make this the active model")
+            : "Download first, then click to activate")
     }
 
     // MARK: - State helpers
