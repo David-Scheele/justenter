@@ -65,9 +65,12 @@ struct BubbleView: View {
         }
         .padding(.horizontal, 11)
         .frame(height: 22)
-        .background(.black.opacity(0.94), in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1))
-        .shadow(color: .black.opacity(0.4), radius: 8, y: 2)
+        // Native HUD material, like the system volume/brightness OSD.
+        .background(.ultraThinMaterial, in: Capsule())
+        .background(.black.opacity(0.35), in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
+        .environment(\.colorScheme, .dark)
+        .shadow(color: .black.opacity(0.3), radius: 8, y: 2)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: phaseKey)
     }
 
@@ -84,61 +87,64 @@ struct BubbleView: View {
     }
 }
 
-/// Dropdown listing all modes — opened with the mode hotkey, rows clickable,
-/// digits 1–9 select directly.
+/// Dropdown listing all modes, styled like a native macOS menu: system material,
+/// checkmark column, accent-color highlight on hover, digits as shortcut labels.
 struct ModeDropdownView: View {
     @ObservedObject var appState: AppState
+    @State private var hoveredModeID: UUID?
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 0) {
             ForEach(Array(appState.modesStore.modes.enumerated()), id: \.element.id) { index, mode in
                 row(index: index, mode: mode)
             }
         }
-        .padding(6)
-        .frame(width: 224)
-        .background(.black.opacity(0.94), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.1), lineWidth: 1))
-        .shadow(color: .black.opacity(0.45), radius: 14, y: 5)
+        .padding(5)
+        .frame(width: 230)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.1), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
     }
 
     @ViewBuilder
     private func row(index: Int, mode: Mode) -> some View {
         let isActive = mode.id == appState.modesStore.activeModeID
+        let isHighlighted = hoveredModeID == mode.id
         Button {
             appState.selectModeFromDropdown(mode)
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 0) {
+                // Checkmark column, like a real menu.
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 16, alignment: .leading)
+                    .opacity(isActive ? 1 : 0)
                 Image(systemName: mode.symbol)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .frame(width: 16)
+                    .font(.system(size: 12))
+                    .frame(width: 20, alignment: .leading)
                 Text(mode.name)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 13))
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                if isActive {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white)
-                } else if index < 9 {
+                if index < 9 {
                     Text("\(index + 1)")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.55))
-                        .frame(width: 16, height: 16)
-                        .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                        .font(.system(size: 13))
+                        .foregroundStyle(isHighlighted ? .white.opacity(0.8) : .secondary)
                 }
             }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
+            .foregroundStyle(isHighlighted ? .white : .primary)
+            .padding(.horizontal, 8)
+            .frame(height: 24)
             .background(
-                isActive ? AnyShapeStyle(.white.opacity(0.16)) : AnyShapeStyle(.clear),
-                in: RoundedRectangle(cornerRadius: 10)
+                isHighlighted ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear),
+                in: RoundedRectangle(cornerRadius: 5)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .contentShape(RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            hoveredModeID = hovering ? mode.id : (hoveredModeID == mode.id ? nil : hoveredModeID)
+        }
     }
 }
 

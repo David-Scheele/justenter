@@ -69,4 +69,8 @@ Sources/JustEnter/
 └── UI/             Notch indicator, Settings tabs, History, Onboarding
 ```
 
-Storage: modes/vocabulary/knowledge/history live as JSON in `~/Library/Application Support/JustEnter/`; Whisper models download to `…/JustEnter/Models/`; the API key lives in the Keychain.
+Storage: modes/vocabulary/knowledge/history live as JSON in `~/Library/Application Support/JustEnter/`; Whisper and Ollama models are managed from Settings.
+
+## Design
+
+The custom surfaces (recording bubble, mode menu, onboarding) follow the native macOS design language — system materials, SF Pro text styles, system colors and accent-tinted controls — using [Alex Kässner's macOS UI Kit](https://github.com/alexkaessner/macOS-UI-Kit) as the reference: the bubble is styled like a system HUD, and the mode dropdown mirrors a native menu (material background, checkmark column, accent highlight, shortcut labels).
