@@ -58,7 +58,7 @@ final class UpdateChecker: ObservableObject {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard statusCode != 404, statusCode != 401, statusCode != 403 else {
                 status = .failed(token.isEmpty
-                    ? "The repo is private — paste a GitHub token below."
+                    ? "GitHub returned \(statusCode) — try again later."
                     : "GitHub rejected the token — check its repo access.")
                 return
             }

@@ -53,8 +53,8 @@ struct GeneralSettingsView: View {
                         }
                     }
                 }
-                SecureField("GitHub token (repo is private — fine-grained, read-only)", text: $settings.githubToken)
-                Text("Create one at github.com → Settings → Developer settings → Fine-grained tokens, with read-only Contents access to David-Scheele/justenter. Stored in the Keychain.")
+                SecureField("GitHub token (optional — not needed, the repo is public)", text: $settings.githubToken)
+                Text("Only useful to avoid GitHub API rate limits. Stored in the Keychain.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -34,11 +34,11 @@ Mode rewriting uses the **Apple Foundation Models framework** (the on-device App
 
 The instructions are assembled per dictation: global rules → mode instructions → vocabulary → knowledge base → context (app, selection, clipboard). The transcript goes in; only the final text comes out. If the model is unavailable (Apple Intelligence off, model still downloading), dictation keeps working — the raw transcript is inserted instead.
 
-## Download (invited collaborators)
+## Download
 
-The repo is private — ask David for an invite, then grab **JustEnter.dmg** (or JustEnter.zip) from the [latest release](https://github.com/David-Scheele/justenter/releases/latest) while signed in to GitHub. Drag the app to Applications. On first launch macOS may warn about an unidentified developer (the app is locally signed, not notarized) — right-click → Open once.
+Grab **JustEnter.dmg** (or JustEnter.zip) from the [latest release](https://github.com/David-Scheele/justenter/releases/latest) and drag the app to Applications. On first launch macOS may warn about an unidentified developer (the app is locally signed, not notarized) — right-click → Open once.
 
-**In-app updates:** the app checks GitHub Releases at launch; when a new version exists, "Install Update" appears in the menu bar menu and Settings → General and installs it in place with a relaunch. Because the repo is private, paste a fine-grained GitHub token (read-only Contents access to this repo) into Settings → General once. Cut a new release with `./release.sh <version>`.
+**In-app updates:** the app checks GitHub Releases at launch; when a new version exists, "Install Update" appears in the menu bar menu and Settings → General and installs it in place with a relaunch. Cut a new release with `./release.sh <version>`.
 
 ## Build & run
 
