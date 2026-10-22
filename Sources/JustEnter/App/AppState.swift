@@ -164,6 +164,11 @@ final class AppState: ObservableObject {
         flashMode(mode)
     }
 
+    /// Lets the mode editor generate instructions with the local AI.
+    func generateModePrompt(name: String, description: String) async throws -> String {
+        try await ai.generateModePrompt(name: name, description: description)
+    }
+
     /// Resolution for the Auto mode: an app-matched mode wins; otherwise the local
     /// AI routes by content; otherwise plain cleanup.
     private func resolveAutoMode(transcript: String) async -> Mode {

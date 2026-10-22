@@ -111,6 +111,24 @@ final class LocalAIService {
         throw LocalAIError.answeredInstead
     }
 
+    /// Writes mode instructions from a name + description (the ✨ button in the editor).
+    func generateModePrompt(name: String, description: String) async throws -> String {
+        let instructions = """
+        You write system prompts for a macOS dictation app. A "mode" rewrites a raw \
+        speech transcript into final text. Write concise, imperative instructions for \
+        the mode described below: one sentence stating the role, then short dash rules \
+        covering what to do, tone and formatting, then 2-3 rules on what never to do \
+        (e.g. never invent content the speaker didn't say). The engine already removes \
+        filler words and self-corrections and preserves the speaker's language — don't \
+        repeat those rules. End with: "Output only the final text, nothing else." \
+        Output ONLY the prompt text — no preamble, no quotes, no markdown headers.
+        """
+        let request = "Mode name: \(name)\nMode description: \(description)"
+        let text = Self.sanitize(try await rawRespond(instructions: instructions, prompt: request))
+        guard !text.isEmpty else { throw LocalAIError.empty }
+        return text
+    }
+
     /// Picks the best-fitting mode for a transcript (used by the Auto mode).
     /// Returns a name from `candidates`, or nil when routing fails.
     func classifyMode(

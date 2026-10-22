@@ -117,6 +117,9 @@ struct ModeEditorPane: View {
     let onDelete: () -> Void
     @State private var newBundleID = ""
     @State private var confirmDelete = false
+    @State private var generating = false
+    @State private var confirmGenerate = false
+    @State private var generateError: String?
 
     private let symbols = [
         "waveform", "text.quote", "bubble.left.and.bubble.right", "envelope",
@@ -128,12 +131,15 @@ struct ModeEditorPane: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 Button(action: onBack) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(width: 28, height: 28)
-                        .background(.quaternary.opacity(0.6), in: Circle())
+                    Label("Back", systemImage: "chevron.left")
+                        .labelStyle(.iconOnly)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
+                .keyboardShortcut(.cancelAction)
                 Image(systemName: mode.symbol)
                     .font(.system(size: 14))
                 Text(mode.name)
@@ -226,15 +232,64 @@ struct ModeEditorPane: View {
                 }
                 if mode.aiEnabled {
                     CardDivider()
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Instructions")
-                            .font(.system(size: 13, weight: .medium))
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Instructions")
+                                .font(.system(size: 13, weight: .medium))
+                            Spacer()
+                            if generating {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Button {
+                                    if mode.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        generatePrompt()
+                                    } else {
+                                        confirmGenerate = true
+                                    }
+                                } label: {
+                                    Label("Generate from description", systemImage: "sparkles")
+                                        .font(.system(size: 11))
+                                }
+                                .controlSize(.small)
+                                .disabled(mode.details.trimmingCharacters(in: .whitespaces).isEmpty)
+                                .help(mode.details.isEmpty
+                                    ? "Add a description above first — the AI writes the instructions from it."
+                                    : "Let the local AI write the instructions from the name and description.")
+                                .confirmationDialog(
+                                    "Replace the current instructions?",
+                                    isPresented: $confirmGenerate
+                                ) {
+                                    Button("Replace", role: .destructive) { generatePrompt() }
+                                }
+                            }
+                        }
                         TextEditor(text: $mode.prompt)
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(.system(size: 13))
+                            .lineSpacing(3)
                             .scrollContentBackground(.hidden)
-                            .frame(minHeight: 110)
-                            .padding(8)
-                            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                            .frame(minHeight: 160)
+                            .padding(10)
+                            .background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .strokeBorder(.primary.opacity(0.08), lineWidth: 1)
+                            )
+                            .overlay(alignment: .topLeading) {
+                                if mode.prompt.isEmpty {
+                                    Text("How should the AI rewrite dictations in this mode? E.g. “Format as a short, friendly chat message.”")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.tertiary)
+                                        .padding(.top, 10)
+                                        .padding(.leading, 14)
+                                        .allowsHitTesting(false)
+                                }
+                            }
+                        if let generateError {
+                            Text(generateError)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.red)
+                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 11)
@@ -329,6 +384,20 @@ struct ModeEditorPane: View {
                     Toggle("", isOn: $mode.restoreClipboard).labelsHidden().toggleStyle(.switch)
                 }
             }
+        }
+    }
+
+    private func generatePrompt() {
+        guard !generating else { return }
+        generating = true
+        generateError = nil
+        Task {
+            do {
+                mode.prompt = try await appState.generateModePrompt(name: mode.name, description: mode.details)
+            } catch {
+                generateError = "Couldn't generate: \(error.localizedDescription)"
+            }
+            generating = false
         }
     }
 
