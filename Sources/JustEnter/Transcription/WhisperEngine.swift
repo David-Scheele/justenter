@@ -15,6 +15,29 @@ final class WhisperEngine: TranscriptionEngine {
     var onPartial: ((String) -> Void)?
     var onStatus: ((String) -> Void)?
 
+    static func modelFolder(for name: String) -> URL {
+        Persistence.modelsURL.appendingPathComponent("models/argmaxinc/whisperkit-coreml/openai_whisper-\(name)")
+    }
+
+    static func isInstalled(_ name: String) -> Bool {
+        FileManager.default.fileExists(atPath: modelFolder(for: name).appendingPathComponent("AudioEncoder.mlmodelc").path)
+    }
+
+    static func deleteModel(_ name: String) {
+        try? FileManager.default.removeItem(at: modelFolder(for: name))
+    }
+
+    static func downloadModel(_ name: String, progress: @escaping @MainActor (Double) -> Void) async throws {
+        _ = try await WhisperKit.download(
+            variant: name,
+            downloadBase: Persistence.modelsURL,
+            progressCallback: { p in
+                let fraction = p.fractionCompleted
+                Task { @MainActor in progress(fraction) }
+            }
+        )
+    }
+
     static let availableModels: [WhisperModelOption] = [
         WhisperModelOption(id: "tiny", label: "Fast — tiny, ~75 MB"),
         WhisperModelOption(id: "base", label: "Nano — base, ~145 MB"),
