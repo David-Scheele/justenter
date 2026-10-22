@@ -278,11 +278,25 @@ final class LocalAIService {
               let content = message["content"] as? String,
               !content.isEmpty
         else { throw LocalAIError.empty }
-        return content.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Reasoning models (gpt-oss, deepseek-r1, qwen3) may embed their thinking —
+        // strip it so thought traces never reach the pasted text.
+        let withoutThinking = content.replacingOccurrences(
+            of: "(?s)<think>.*?</think>",
+            with: "",
+            options: .regularExpression
+        )
+        return withoutThinking.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    struct OllamaModel: Identifiable, Hashable {
+        let name: String
+        let sizeGB: Double
+        var id: String { name }
+        var label: String { sizeGB > 0 ? String(format: "%@ — %.1f GB", name, sizeGB) : name }
     }
 
     /// Installed Ollama models, or nil when Ollama isn't reachable.
-    static func ollamaModels() async -> [String]? {
+    static func ollamaModels() async -> [OllamaModel]? {
         guard let url = URL(string: "http://localhost:11434/api/tags") else { return nil }
         var request = URLRequest(url: url)
         request.timeoutInterval = 2
@@ -291,7 +305,58 @@ final class LocalAIService {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let models = json["models"] as? [[String: Any]]
         else { return nil }
-        return models.compactMap { $0["name"] as? String }.sorted()
+        return models
+            .compactMap { entry -> OllamaModel? in
+                guard let name = entry["name"] as? String else { return nil }
+                let bytes = entry["size"] as? Double ?? 0
+                return OllamaModel(name: name, sizeGB: bytes / 1_073_741_824)
+            }
+            .sorted { $0.name < $1.name }
+    }
+
+    /// Streams `ollama pull` with progress callbacks (status text, 0…1 fraction when known).
+    static func ollamaPull(model: String, progress: @escaping @MainActor (String, Double?) -> Void) async throws {
+        var request = URLRequest(url: URL(string: "http://localhost:11434/api/pull")!)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 3600
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "stream": true])
+
+        let bytes: URLSession.AsyncBytes
+        let response: URLResponse
+        do {
+            (bytes, response) = try await URLSession.shared.bytes(for: request)
+        } catch {
+            throw LocalAIError.unavailable("Ollama isn't reachable on localhost:11434 — is it running?")
+        }
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw LocalAIError.unavailable("Ollama rejected the install request.")
+        }
+        for try await line in bytes.lines {
+            guard let data = line.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { continue }
+            if let errorMessage = json["error"] as? String {
+                throw LocalAIError.unavailable("Ollama: \(errorMessage)")
+            }
+            let status = json["status"] as? String ?? "Downloading…"
+            var fraction: Double?
+            if let total = json["total"] as? Double, total > 0,
+               let completed = json["completed"] as? Double {
+                fraction = completed / total
+            }
+            await progress(status, fraction)
+            if status == "success" { return }
+        }
+    }
+
+    static func ollamaDelete(model: String) async throws {
+        var request = URLRequest(url: URL(string: "http://localhost:11434/api/delete")!)
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = 10
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["model": model])
+        _ = try await URLSession.shared.data(for: request)
     }
 
     /// Small models sometimes announce their output despite instructions
