@@ -65,12 +65,10 @@ struct BubbleView: View {
         }
         .padding(.horizontal, 11)
         .frame(height: 22)
-        // Native HUD material, like the system volume/brightness OSD.
-        .background(.ultraThinMaterial, in: Capsule())
-        .background(.black.opacity(0.35), in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
+        // Liquid Glass HUD, dark-tinted like the system volume/brightness OSD.
+        .glassEffect(.regular.tint(.black.opacity(0.45)), in: Capsule())
         .environment(\.colorScheme, .dark)
-        .shadow(color: .black.opacity(0.3), radius: 8, y: 2)
+        .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: phaseKey)
     }
 
@@ -101,9 +99,9 @@ struct ModeDropdownView: View {
         }
         .padding(5)
         .frame(width: 230)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.primary.opacity(0.1), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
+        // Liquid Glass panel, like native Tahoe menus.
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.22), radius: 16, y: 6)
     }
 
     @ViewBuilder

@@ -5,21 +5,29 @@ struct SettingsView: View {
     @ObservedObject var appState: AppState
 
     var body: some View {
+        // The modern Tab API gives the native toolbar-style settings tabs
+        // (Liquid Glass chrome) instead of the legacy boxed tab view.
         TabView {
-            GeneralSettingsView(appState: appState)
-                .tabItem { Label("General", systemImage: "gearshape") }
-            ModesSettingsView(appState: appState)
-                .tabItem { Label("Modes", systemImage: "square.grid.2x2") }
-            AISettingsView()
-                .tabItem { Label("AI", systemImage: "sparkles") }
-            SpeechSettingsView(appState: appState)
-                .tabItem { Label("Speech", systemImage: "waveform") }
-            VocabularySettingsView(store: appState.vocabulary)
-                .tabItem { Label("Vocabulary", systemImage: "character.book.closed") }
-            KnowledgeSettingsView(store: appState.knowledge)
-                .tabItem { Label("Knowledge", systemImage: "brain") }
+            Tab("General", systemImage: "gearshape") {
+                GeneralSettingsView(appState: appState)
+            }
+            Tab("Modes", systemImage: "square.grid.2x2") {
+                ModesSettingsView(appState: appState)
+            }
+            Tab("AI", systemImage: "sparkles") {
+                AISettingsView()
+            }
+            Tab("Speech", systemImage: "waveform") {
+                SpeechSettingsView(appState: appState)
+            }
+            Tab("Vocabulary", systemImage: "character.book.closed") {
+                VocabularySettingsView(store: appState.vocabulary)
+            }
+            Tab("Knowledge", systemImage: "brain") {
+                KnowledgeSettingsView(store: appState.knowledge)
+            }
         }
-        .frame(minWidth: 640, minHeight: 480)
+        .frame(width: 680, height: 560)
         .onAppear { Self.bringToFront() }
     }
 

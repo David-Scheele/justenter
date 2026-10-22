@@ -13,8 +13,6 @@ struct SpeechSettingsView: View {
                         Text(kind.label).tag(kind)
                     }
                 }
-                .pickerStyle(.inline)
-                .labelsHidden()
                 Text(engineHint)
                     .font(.caption)
                     .foregroundStyle(.secondary)

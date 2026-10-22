@@ -60,7 +60,7 @@ struct OnboardingView: View {
                 Text("Start Dictating")
                     .frame(minWidth: 140)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
             .padding(.bottom, 26)

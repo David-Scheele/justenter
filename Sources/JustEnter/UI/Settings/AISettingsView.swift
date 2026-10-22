@@ -46,8 +46,6 @@ struct AISettingsView: View {
                         Text(backend.label).tag(backend)
                     }
                 }
-                .pickerStyle(.inline)
-                .labelsHidden()
                 Text("Everything runs on this Mac — no API keys, no cloud, works offline.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -142,7 +140,7 @@ struct AISettingsView: View {
                         }
                         HStack {
                             TextField("Any other Ollama model, e.g. mistral:7b", text: $customModel)
-                                .textFieldStyle(.roundedBorder)
+
                             Button("Install") {
                                 install(customModel.trimmingCharacters(in: .whitespaces))
                             }

@@ -15,10 +15,10 @@ struct VocabularySettingsView: View {
                 ForEach($store.entries) { $entry in
                     HStack {
                         TextField("Term", text: $entry.phrase)
-                            .textFieldStyle(.roundedBorder)
+
                             .frame(minWidth: 140)
                         TextField("Common mis-hearings (comma-separated)", text: $entry.misspellings)
-                            .textFieldStyle(.roundedBorder)
+
                         Button {
                             store.entries.removeAll { $0.id == entry.id }
                         } label: {
@@ -41,11 +41,11 @@ struct VocabularySettingsView: View {
                 ForEach($store.replacements) { $replacement in
                     HStack {
                         TextField("Spoken text", text: $replacement.from)
-                            .textFieldStyle(.roundedBorder)
+
                         Image(systemName: "arrow.right")
                             .foregroundStyle(.tertiary)
                         TextField("Becomes", text: $replacement.to)
-                            .textFieldStyle(.roundedBorder)
+
                         Button {
                             store.replacements.removeAll { $0.id == replacement.id }
                         } label: {
