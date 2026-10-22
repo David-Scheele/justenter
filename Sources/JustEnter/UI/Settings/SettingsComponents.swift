@@ -73,7 +73,8 @@ struct PaneScaffold<Content: View, TrailingItem: View>: View {
                 trailing
             }
             .padding(.horizontal, 26)
-            .padding(.top, 22)
+            // Clears the (invisible) unified-toolbar strip, which swallows clicks.
+            .padding(.top, 56)
             .padding(.bottom, 10)
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {

@@ -69,8 +69,8 @@ struct SettingsView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 4) {
-            // Clearance for the inset traffic lights.
-            Spacer().frame(height: 48)
+            // Clearance for the inset traffic lights and the toolbar's click-dead strip.
+            Spacer().frame(height: 56)
             ForEach(Pane.primary) { pane in
                 sidebarRow(pane)
             }

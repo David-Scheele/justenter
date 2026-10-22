@@ -157,7 +157,8 @@ struct ModeEditorPane: View {
                 }
             }
             .padding(.horizontal, 26)
-            .padding(.top, 22)
+            // Clears the (invisible) unified-toolbar strip, which swallows clicks.
+            .padding(.top, 56)
             .padding(.bottom, 10)
 
             ScrollView {
