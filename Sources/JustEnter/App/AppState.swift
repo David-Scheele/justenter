@@ -344,6 +344,28 @@ final class AppState: ObservableObject {
         )
         phase = .recording
         playSound("whisper-start")
+
+        // While the user talks, get the AI hot with the exact instructions this
+        // dictation will use — the enhance step then starts on a warm session.
+        prewarmAI(for: mode)
+    }
+
+    private func prewarmAI(for mode: Mode) {
+        if mode.isAuto {
+            let candidates = modesStore.modes
+                .filter { !$0.isAuto }
+                .map { (name: $0.name, details: $0.details.isEmpty ? $0.name : $0.details) }
+            ai.prewarmClassification(candidates: candidates)
+        } else {
+            let instructions = LocalAIService.buildEnhanceInstructions(
+                mode: mode,
+                formality: settings.formality,
+                vocabularySection: vocabulary.promptSection,
+                knowledgeSection: knowledge.promptSection,
+                context: capturedContext
+            )
+            ai.prewarm(instructions: instructions)
+        }
     }
 
     func stopAndProcess() async {

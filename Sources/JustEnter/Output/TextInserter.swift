@@ -28,7 +28,9 @@ enum TextInserter {
         (pasteboard.pasteboardItems ?? []).map { item in
             let copy = NSPasteboardItem()
             for type in item.types {
-                if let data = item.data(forType: type) {
+                // Skip huge payloads (screenshots etc.) — copying them in and out
+                // of memory would delay the paste for marginal benefit.
+                if let data = item.data(forType: type), data.count < 4_000_000 {
                     copy.setData(data, forType: type)
                 }
             }

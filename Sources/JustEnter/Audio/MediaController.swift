@@ -4,10 +4,15 @@ import CoreAudio
 
 /// Quiets the room while dictating: pauses Music/Spotify if they're playing
 /// (resumed afterwards) and/or ducks the system output volume.
+/// All of it runs off the critical path — AppleScript and CoreAudio calls are
+/// fire-and-forget on background threads so they never delay recording or
+/// transcription.
 @MainActor
 final class MediaController {
     private var savedVolume: Float32?
     private var pausedPlayers: [String] = []
+    /// Guards against begin/end overlapping when dictations are short.
+    private var sequence = 0
 
     private let players: [(bundleID: String, appName: String)] = [
         ("com.apple.Music", "Music"),
@@ -15,79 +20,109 @@ final class MediaController {
     ]
 
     func beginDictation(pauseMedia: Bool, duckAudio: Bool) {
-        if pauseMedia {
-            pausePlayers()
-        }
+        sequence += 1
+        let seq = sequence
+
         if duckAudio {
-            duckVolume()
+            Task.detached(priority: .userInitiated) {
+                guard let volume = Self.outputVolume(), volume > 0.05 else { return }
+                await MainActor.run {
+                    guard seq == self.sequence, self.savedVolume == nil else { return }
+                    self.savedVolume = volume
+                }
+                Self.setOutputVolume(volume * 0.2)
+            }
         }
-    }
 
-    func endDictation() {
-        restoreVolume()
-        resumePlayers()
-    }
-
-    // MARK: - Music players (AppleScript, idempotent, only resumed if we paused them)
-
-    private func pausePlayers() {
-        pausedPlayers = []
-        for player in players where isRunning(player.bundleID) {
-            let script = """
-            tell application "\(player.appName)"
-                if player state is playing then
-                    pause
-                    return "paused"
-                end if
-            end tell
-            """
-            if runAppleScript(script) == "paused" {
-                pausedPlayers.append(player.appName)
+        guard pauseMedia else { return }
+        let running = players.filter { isRunning($0.bundleID) }.map(\.appName)
+        guard !running.isEmpty else { return }
+        Task {
+            var paused: [String] = []
+            for name in running {
+                let script = """
+                tell application "\(name)"
+                    if player state is playing then
+                        pause
+                        return "paused"
+                    end if
+                end tell
+                """
+                if await Self.runScript(script) == "paused" {
+                    paused.append(name)
+                }
+            }
+            if seq == sequence {
+                pausedPlayers.append(contentsOf: paused)
+            } else {
+                // Dictation already ended while we were pausing — undo right away.
+                for name in paused {
+                    _ = await Self.runScript("tell application \"\(name)\" to play")
+                }
             }
         }
     }
 
-    private func resumePlayers() {
-        for name in pausedPlayers {
-            _ = runAppleScript("tell application \"\(name)\" to play")
+    func endDictation() {
+        sequence += 1
+        if let volume = savedVolume {
+            savedVolume = nil
+            Task.detached(priority: .userInitiated) {
+                Self.setOutputVolume(volume)
+            }
         }
+        let toResume = pausedPlayers
         pausedPlayers = []
+        guard !toResume.isEmpty else { return }
+        Task {
+            for name in toResume {
+                _ = await Self.runScript("tell application \"\(name)\" to play")
+            }
+        }
     }
 
     private func isRunning(_ bundleID: String) -> Bool {
         !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
     }
 
-    private func runAppleScript(_ source: String) -> String? {
-        guard let script = NSAppleScript(source: source) else { return nil }
-        var error: NSDictionary?
-        let result = script.executeAndReturnError(&error)
-        guard error == nil else { return nil }
-        return result.stringValue
-    }
-
-    // MARK: - Volume ducking (everything else: browsers, videos, …)
-
-    private func duckVolume() {
-        guard savedVolume == nil, let volume = Self.outputVolume(), volume > 0.05 else { return }
-        savedVolume = volume
-        Self.setOutputVolume(volume * 0.2)
-    }
-
-    private func restoreVolume() {
-        if let volume = savedVolume {
-            Self.setOutputVolume(volume)
-            savedVolume = nil
+    /// Runs AppleScript via osascript in a subprocess on a background queue —
+    /// NSAppleScript would block the main thread for hundreds of milliseconds.
+    nonisolated private static func runScript(_ source: String) async -> String? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+                process.arguments = ["-e", source]
+                let out = Pipe()
+                process.standardOutput = out
+                process.standardError = Pipe()
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                process.waitUntilExit()
+                guard process.terminationStatus == 0 else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let data = out.fileHandleForReading.readDataToEndOfFile()
+                continuation.resume(returning: String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines))
+            }
         }
     }
 
-    private static var volumeAddress = AudioObjectPropertyAddress(
+    // MARK: - Volume ducking (thread-safe CoreAudio calls)
+
+    nonisolated(unsafe) private static var volumeAddress = AudioObjectPropertyAddress(
         mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
         mScope: kAudioDevicePropertyScopeOutput,
         mElement: kAudioObjectPropertyElementMain
     )
 
-    private static func defaultOutputDevice() -> AudioDeviceID? {
+    nonisolated private static func defaultOutputDevice() -> AudioDeviceID? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -101,7 +136,7 @@ final class MediaController {
         return deviceID
     }
 
-    private static func outputVolume() -> Float32? {
+    nonisolated private static func outputVolume() -> Float32? {
         guard let device = defaultOutputDevice() else { return nil }
         var volume = Float32(0)
         var size = UInt32(MemoryLayout<Float32>.size)
@@ -109,7 +144,7 @@ final class MediaController {
         return volume
     }
 
-    private static func setOutputVolume(_ volume: Float32) {
+    nonisolated private static func setOutputVolume(_ volume: Float32) {
         guard let device = defaultOutputDevice() else { return }
         var settable = DarwinBoolean(false)
         guard AudioObjectIsPropertySettable(device, &volumeAddress, &settable) == noErr, settable.boolValue else { return }

@@ -60,14 +60,15 @@ final class LocalAIService {
         }
     }
 
-    func enhance(
-        transcript: String,
+    /// Builds the full system prompt for a dictation — shared by enhance() and
+    /// the prewarming path so a session prepared during recording is reused.
+    static func buildEnhanceInstructions(
         mode: Mode,
         formality: Double,
         vocabularySection: String,
         knowledgeSection: String,
         context: DictationContext
-    ) async throws -> String {
+    ) -> String {
         var parts: [String] = [Self.baseRules]
         if mode.aiEnabled {
             parts.append("Mode instructions:\n\(mode.prompt)")
@@ -95,11 +96,29 @@ final class LocalAIService {
         if !contextParts.isEmpty {
             parts.append("Context:\n" + contextParts.joined(separator: "\n\n"))
         }
+        return parts.joined(separator: "\n\n")
+    }
+
+    func enhance(
+        transcript: String,
+        mode: Mode,
+        formality: Double,
+        vocabularySection: String,
+        knowledgeSection: String,
+        context: DictationContext
+    ) async throws -> String {
+        let instructions = Self.buildEnhanceInstructions(
+            mode: mode,
+            formality: formality,
+            vocabularySection: vocabularySection,
+            knowledgeSection: knowledgeSection,
+            context: context
+        )
 
         // Guard rail: the transcript is content, never a conversation. If the model
         // "answered" the dictation, retry once in strict-cleanup mode; if it answers
         // again, give up so the caller falls back to deterministic cleanup.
-        let first = try await respond(instructions: parts.joined(separator: "\n\n"), transcript: transcript)
+        let first = try await respond(instructions: instructions, transcript: transcript)
         if !Self.isBadOutput(first, transcript: transcript) {
             return first
         }
@@ -131,26 +150,31 @@ final class LocalAIService {
 
     /// Picks the best-fitting mode for a transcript (used by the Auto mode).
     /// Returns a name from `candidates`, or nil when routing fails.
+    static func classificationInstructions(candidates: [(name: String, details: String)]) -> String {
+        let list = candidates.map { "- \($0.name): \($0.details)" }.joined(separator: "\n")
+        return """
+        You are a router inside a dictation app. The user dictated something; decide \
+        which output mode fits the text best. Answer with EXACTLY one mode name from \
+        this list and nothing else:
+        \(list)
+        """
+    }
+
     func classifyMode(
         transcript: String,
         appName: String?,
         candidates: [(name: String, details: String)]
     ) async -> String? {
         guard candidates.count > 1 else { return candidates.first?.name }
-        let list = candidates.map { "- \($0.name): \($0.details)" }.joined(separator: "\n")
-        let instructions = """
-        You are a router inside a dictation app. The user dictated something; decide \
-        which output mode fits the text best. Answer with EXACTLY one mode name from \
-        this list and nothing else:
-        \(list)
-        """
+        let instructions = Self.classificationInstructions(candidates: candidates)
         var prompt = ""
         if let appName {
             prompt += "The user is dictating into the app “\(appName)”.\n"
         }
-        prompt += "Transcript:\n\(String(transcript.prefix(600)))"
+        prompt += "Transcript:\n\(String(transcript.prefix(300)))"
 
-        guard let answer = try? await rawRespond(instructions: instructions, prompt: prompt) else { return nil }
+        // A mode name is a handful of tokens — capping the response keeps routing fast.
+        guard let answer = try? await rawRespond(instructions: instructions, prompt: prompt, maxTokens: 16) else { return nil }
         return candidates.first(where: { answer.localizedCaseInsensitiveContains($0.name) })?.name
     }
 
@@ -244,36 +268,77 @@ final class LocalAIService {
         return text
     }
 
+    // MARK: - Prewarming (called when recording starts, so the model is hot
+    // with the exact instructions by the time the transcript is ready)
+
+    private var preparedSession: LanguageModelSession?
+    private var preparedInstructions: String?
+
+    func prewarm(instructions: String) {
+        switch AppSettings.shared.aiBackend {
+        case .apple:
+            guard Self.isAvailable else { return }
+            let session = LanguageModelSession(instructions: instructions)
+            session.prewarm()
+            preparedSession = session
+            preparedInstructions = instructions
+        case .ollama:
+            // Loads the model weights (and keeps them resident via keep_alive).
+            let model = AppSettings.shared.ollamaModel
+            Task.detached(priority: .userInitiated) {
+                await Self.ollamaWarm(model: model)
+            }
+        }
+    }
+
+    func prewarmClassification(candidates: [(name: String, details: String)]) {
+        prewarm(instructions: Self.classificationInstructions(candidates: candidates))
+    }
+
     /// One round-trip to the selected local backend.
-    private func rawRespond(instructions: String, prompt: String) async throws -> String {
+    private func rawRespond(instructions: String, prompt: String, maxTokens: Int? = nil) async throws -> String {
         switch AppSettings.shared.aiBackend {
         case .apple:
             guard Self.isAvailable else {
                 throw LocalAIError.unavailable(Self.availabilityDescription)
             }
-            let session = LanguageModelSession(instructions: instructions)
-            let response = try await session.respond(to: prompt)
+            let session: LanguageModelSession
+            if let prepared = preparedSession, preparedInstructions == instructions {
+                session = prepared
+                preparedSession = nil
+                preparedInstructions = nil
+            } else {
+                session = LanguageModelSession(instructions: instructions)
+            }
+            let options = GenerationOptions(maximumResponseTokens: maxTokens)
+            let response = try await session.respond(to: prompt, options: options)
             return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
         case .ollama:
             return try await Self.ollamaChat(
                 model: AppSettings.shared.ollamaModel,
                 system: instructions,
-                user: prompt
+                user: prompt,
+                maxTokens: maxTokens
             )
         }
     }
 
     // MARK: - Ollama (localhost:11434)
 
-    static func ollamaChat(model: String, system: String, user: String) async throws -> String {
-        let body: [String: Any] = [
+    static func ollamaChat(model: String, system: String, user: String, maxTokens: Int? = nil) async throws -> String {
+        var body: [String: Any] = [
             "model": model,
             "stream": false,
+            // Keep the model resident between dictations instead of the 5-minute default.
+            "keep_alive": "30m",
             "messages": [
                 ["role": "system", "content": system],
                 ["role": "user", "content": user],
             ],
         ]
+        if let maxTokens {
+            body["options"] = ["num_predict": maxTokens]
+        }
         var request = URLRequest(url: URL(string: "http://localhost:11434/api/chat")!)
         request.httpMethod = "POST"
         request.timeoutInterval = 120
@@ -311,6 +376,19 @@ final class LocalAIService {
         let sizeGB: Double
         var id: String { name }
         var label: String { sizeGB > 0 ? String(format: "%@ — %.1f GB", name, sizeGB) : name }
+    }
+
+    /// Loads a model into memory (empty generate) so the first real request is fast.
+    static func ollamaWarm(model: String) async {
+        guard let url = URL(string: "http://localhost:11434/api/generate") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 300
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "model": model, "prompt": "", "keep_alive": "30m",
+        ])
+        _ = try? await URLSession.shared.data(for: request)
     }
 
     /// Installed Ollama models, or nil when Ollama isn't reachable.
