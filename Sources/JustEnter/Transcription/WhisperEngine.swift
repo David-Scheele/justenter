@@ -105,7 +105,20 @@ final class WhisperEngine: TranscriptionEngine {
             prewarm: true,
             download: false
         )
-        whisperKit = try await WhisperKit(config)
+        let kit = try await WhisperKit(config)
+        whisperKit = kit
+
+        // Warm the full decode path with a second of silence — the first real
+        // transcription is otherwise ~1s slower than every one after it.
+        onStatus?("Warming up…")
+        var warmupOptions = DecodingOptions()
+        warmupOptions.task = .transcribe
+        warmupOptions.language = "en"
+        _ = try? await kit.transcribe(
+            audioArray: [Float](repeating: 0, count: 16_000),
+            decodeOptions: warmupOptions
+        )
+        onStatus?("Ready")
     }
 
     func startSession(request: TranscriptionRequest) async throws {

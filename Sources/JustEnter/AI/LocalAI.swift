@@ -470,15 +470,20 @@ final class LocalAIService {
         var label: String { sizeGB > 0 ? String(format: "%@ — %.1f GB", name, sizeGB) : name }
     }
 
-    /// Loads a model into memory (empty generate) so the first real request is fast.
+    /// Loads a model into memory AND exercises the full chat path with a one-token
+    /// request — a bare load still leaves the first real request ~0.3s slower.
     static func ollamaWarm(model: String) async {
-        guard let url = URL(string: "http://localhost:11434/api/generate") else { return }
+        guard let url = URL(string: "http://localhost:11434/api/chat") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 300
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: [
-            "model": model, "prompt": "", "keep_alive": "30m",
+            "model": model,
+            "stream": false,
+            "keep_alive": "30m",
+            "messages": [["role": "user", "content": "Hi"]],
+            "options": ["num_predict": 1],
         ])
         _ = try? await URLSession.shared.data(for: request)
     }
