@@ -14,6 +14,13 @@ final class ModesStore: ObservableObject {
 
     init() {
         var loaded = Persistence.load([Mode].self, from: "modes.json") ?? Mode.defaults()
+        // Upgrade stock prompts to their improved versions (exact match only —
+        // prompts the user edited are left alone).
+        for index in loaded.indices {
+            if let upgraded = Mode.promptUpgrades[loaded[index].prompt] {
+                loaded[index].prompt = upgraded
+            }
+        }
         // Inject the Auto mode once; it becomes the active default when first added.
         var autoJustAdded: UUID?
         if !loaded.contains(where: { $0.isAuto }) {

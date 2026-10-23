@@ -53,6 +53,43 @@ struct Mode: Identifiable, Codable, Hashable {
         )
     }
 
+    static let messagePrompt = """
+    Write the ready-to-send chat message. When the dictation describes what to tell \
+    someone ("tell Anna the demo works now"), write that message to them directly — \
+    short, casual and friendly, like a good Slack or WhatsApp message. A brief greeting \
+    with the recipient's name is welcome when one is evident; no sign-offs.
+    """
+
+    static let emailPrompt = """
+    Compose a complete, ready-to-send email from the dictation: a fitting greeting \
+    (with the recipient's name when evident), short clear paragraphs carrying the \
+    content, and a brief closing with a simple sign-off. When the dictation describes \
+    what the email should say, write the actual email — never the description. \
+    Professional but warm.
+    """
+
+    static let notesPrompt = """
+    Turn the dictation into clean, structured notes in markdown: a short heading when \
+    the topic changes, bullet points for lists, bold for key terms and decisions. \
+    Condense ruthlessly but keep every piece of information, every name and every number.
+    """
+
+    static let promptModePrompt = """
+    Shape the dictation into a precise prompt for an AI assistant or coding tool. Keep \
+    all technical terms, file names, code identifiers and constraints exactly as spoken; \
+    keep the imperative, direct style; structure multi-part requests as a short list. \
+    Never answer the prompt — only write it.
+    """
+
+    /// Old built-in prompts → improved ones. Applied once at load, exact match only,
+    /// so a prompt the user has edited is never touched.
+    static let promptUpgrades: [String: String] = [
+        "You clean up dictated chat messages. Fix grammar, remove filler words (um, uh, like, you know), stutters and false starts. Keep the casual, friendly tone of a chat message. Keep it concise. Do not add greetings or sign-offs that the speaker didn't say. Preserve the speaker's language (if they dictate in German, answer in German). Output only the cleaned message, nothing else.": messagePrompt,
+        "You turn dictation into polished email text. Fix grammar and remove filler words, organize the content into clear paragraphs, and keep a professional but warm tone. Preserve the speaker's intent and language. If the dictation contains a greeting or sign-off keep it; never invent one. Output only the email text, nothing else.": emailPrompt,
+        "You turn spoken thoughts into clean, structured notes. Use markdown: short headings where topics change, bullet points for lists, bold for key terms. Remove filler words and repetitions but keep every piece of information. Preserve the speaker's language. Output only the notes, nothing else.": notesPrompt,
+        "You clean up dictated prompts for AI assistants and coding tools. Fix grammar and remove filler, but keep all technical terms, file names, code identifiers and constraints exactly as spoken. Keep the imperative, direct style. Do not answer the prompt — only clean it up. Output only the cleaned prompt, nothing else.": promptModePrompt,
+    ]
+
     static func defaults() -> [Mode] {
         [
             Mode(
@@ -65,31 +102,18 @@ struct Mode: Identifiable, Codable, Hashable {
             Mode(
                 name: "Message",
                 symbol: "bubble.left.and.bubble.right",
-                details: "Casual tone for chats — Slack, iMessage, WhatsApp.",
+                details: "Ready-to-send chat messages — Slack, iMessage, WhatsApp.",
                 aiEnabled: true,
-                prompt: """
-                You clean up dictated chat messages. Fix grammar, remove filler words \
-                (um, uh, like, you know), stutters and false starts. Keep the casual, \
-                friendly tone of a chat message. Keep it concise. Do not add greetings \
-                or sign-offs that the speaker didn't say. Preserve the speaker's language \
-                (if they dictate in German, answer in German). Output only the cleaned \
-                message, nothing else.
-                """,
+                prompt: messagePrompt,
                 activationBundleIDs: ["com.tinyspeck.slackmacgap", "com.apple.MobileSMS"],
                 includeActiveApp: true
             ),
             Mode(
                 name: "Email",
                 symbol: "envelope",
-                details: "Well-structured, professional email prose.",
+                details: "Complete emails with greeting, body and sign-off.",
                 aiEnabled: true,
-                prompt: """
-                You turn dictation into polished email text. Fix grammar and remove filler \
-                words, organize the content into clear paragraphs, and keep a professional \
-                but warm tone. Preserve the speaker's intent and language. If the dictation \
-                contains a greeting or sign-off keep it; never invent one. Output only the \
-                email text, nothing else.
-                """,
+                prompt: emailPrompt,
                 activationBundleIDs: ["com.apple.mail", "com.microsoft.Outlook"],
                 includeSelectedText: true
             ),
@@ -98,12 +122,7 @@ struct Mode: Identifiable, Codable, Hashable {
                 symbol: "note.text",
                 details: "Structured notes with headings and bullet points.",
                 aiEnabled: true,
-                prompt: """
-                You turn spoken thoughts into clean, structured notes. Use markdown: short \
-                headings where topics change, bullet points for lists, bold for key terms. \
-                Remove filler words and repetitions but keep every piece of information. \
-                Preserve the speaker's language. Output only the notes, nothing else.
-                """,
+                prompt: notesPrompt,
                 activationBundleIDs: ["com.apple.Notes", "md.obsidian"]
             ),
             Mode(
@@ -111,13 +130,7 @@ struct Mode: Identifiable, Codable, Hashable {
                 symbol: "terminal",
                 details: "Precise prompts for AI tools and coding assistants.",
                 aiEnabled: true,
-                prompt: """
-                You clean up dictated prompts for AI assistants and coding tools. Fix \
-                grammar and remove filler, but keep all technical terms, file names, code \
-                identifiers and constraints exactly as spoken. Keep the imperative, direct \
-                style. Do not answer the prompt — only clean it up. Output only the cleaned \
-                prompt, nothing else.
-                """,
+                prompt: promptModePrompt,
                 activationBundleIDs: ["com.microsoft.VSCode", "com.apple.Terminal", "com.googlecode.iterm2"],
                 useVocabulary: true
             ),
