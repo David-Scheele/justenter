@@ -78,6 +78,14 @@ final class AppState: ObservableObject {
         Task {
             await UpdateChecker.shared.check()
         }
+
+        // With an Ollama backend, load the model now — not on the first dictation.
+        if settings.aiBackend == .ollama {
+            let model = settings.ollamaModel
+            Task.detached(priority: .utility) {
+                await LocalAIService.ollamaWarm(model: model)
+            }
+        }
     }
 
     /// Downloads/loads the currently selected speech model in the background.

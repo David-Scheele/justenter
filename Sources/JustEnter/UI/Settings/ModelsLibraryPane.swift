@@ -273,6 +273,10 @@ struct ModelsLibraryPane: View {
             } else {
                 settings.aiBackend = .ollama
                 settings.ollamaModel = entry.id
+                // Load the model right away so the next dictation is instant.
+                Task.detached(priority: .utility) {
+                    await LocalAIService.ollamaWarm(model: entry.id)
+                }
             }
         }
     }
