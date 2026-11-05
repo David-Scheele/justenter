@@ -139,6 +139,10 @@ final class AppState: ObservableObject {
                 Task { await startRecording() }
             } else if phase == .recording {
                 Task { await stopAndProcess() }
+            } else if phase == .preparing {
+                // Second press while a model is still loading backs out instead
+                // of leaving the user stuck watching the spinner.
+                cancelDictation()
             }
         case .modeSwitch:
             cycleMode()
@@ -332,7 +336,11 @@ final class AppState: ObservableObject {
             engine.onStatus = { [weak self] status in
                 self?.preparingStatus = status
             }
-            try await engine.prepare(request: request)
+            // Watchdog: a wedged model load must never strand the UI in "Loading…".
+            // The background (single-flight) load keeps running for next time.
+            try await Self.withTimeout(seconds: 90, errorMessage: "The speech model is still loading — try again in a moment.") {
+                try await engine.prepare(request: request)
+            }
             guard pid == pipelineID else { return }
             try await engine.startSession(request: request)
             guard pid == pipelineID else { return }
@@ -538,5 +546,26 @@ final class AppState: ObservableObject {
 
     private func simpleError(_ message: String) -> NSError {
         NSError(domain: "JustEnter", code: 10, userInfo: [NSLocalizedDescriptionKey: message])
+    }
+
+    /// Races `operation` against a deadline; throws a readable error on timeout.
+    static func withTimeout(
+        seconds: Double,
+        errorMessage: String,
+        operation: @escaping () async throws -> Void
+    ) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(for: .seconds(seconds))
+                throw NSError(domain: "JustEnter", code: 11, userInfo: [
+                    NSLocalizedDescriptionKey: errorMessage,
+                ])
+            }
+            defer { group.cancelAll() }
+            try await group.next()
+        }
     }
 }
