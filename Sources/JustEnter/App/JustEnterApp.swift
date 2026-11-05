@@ -25,8 +25,7 @@ struct JustEnterApp: App {
 
 }
 
-/// Lives inside the MenuBarExtra label so it actually re-renders on state changes:
-/// recording/processing states, and the active mode's icon flashed after a switch.
+/// Lives inside the MenuBarExtra label so it actually re-renders on state changes.
 private struct MenuBarLabel: View {
     @ObservedObject var appState: AppState
 
@@ -38,7 +37,7 @@ private struct MenuBarLabel: View {
         switch appState.phase {
         case .recording: return "waveform.circle.fill"
         case .transcribing, .enhancing, .preparing: return "ellipsis.circle"
-        default: return appState.menuBarModeSymbol ?? "waveform"
+        default: return "waveform"
         }
     }
 }

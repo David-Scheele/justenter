@@ -18,8 +18,6 @@ enum DictationPhase: Equatable {
 @MainActor
 final class AppState: ObservableObject {
     @Published var phase: DictationPhase = .idle
-    /// Mode symbol briefly shown in the menu bar after a mode switch.
-    @Published var menuBarModeSymbol: String?
     /// The mode dropdown attached below the bubble.
     @Published var modeDropdownVisible = false
     /// Progress shown in the notch while a speech model loads ("Downloading 43%").
@@ -47,7 +45,6 @@ final class AppState: ObservableObject {
     private var capturedContext = DictationContext()
     private var recordingMode: Mode?
     private var generation = 0
-    private var flashGeneration = 0
     /// Bumped on every start/cancel; in-flight pipeline results are dropped when stale.
     private var pipelineID = 0
 
@@ -173,7 +170,6 @@ final class AppState: ObservableObject {
         guard !modesStore.activeMode.isAuto else { return }
         guard let mode = modesStore.mode(for: bundleID), mode.id != modesStore.activeModeID else { return }
         modesStore.select(mode)
-        flashMode(mode)
     }
 
     /// Lets the mode editor generate instructions with the local AI.
@@ -209,7 +205,6 @@ final class AppState: ObservableObject {
             let currentIndex = modes.firstIndex(where: { $0.id == modesStore.activeModeID }) ?? 0
             let next = modes[(currentIndex + 1) % modes.count]
             modesStore.select(next, manual: true)
-            flashMode(next)
         } else {
             openModeDropdown()
         }
@@ -244,7 +239,6 @@ final class AppState: ObservableObject {
 
     func selectModeFromDropdown(_ mode: Mode) {
         modesStore.select(mode, manual: true)
-        flashMode(mode)
         closeModeDropdown()
     }
 
@@ -268,19 +262,6 @@ final class AppState: ObservableObject {
         UInt32(kVK_ANSI_4), UInt32(kVK_ANSI_5), UInt32(kVK_ANSI_6),
         UInt32(kVK_ANSI_7), UInt32(kVK_ANSI_8), UInt32(kVK_ANSI_9),
     ]
-
-    /// Mode switches don't open the notch — the menu bar icon briefly becomes
-    /// the new mode's symbol instead.
-    private func flashMode(_ mode: Mode) {
-        flashGeneration += 1
-        let gen = flashGeneration
-        menuBarModeSymbol = mode.symbol
-        Task {
-            try? await Task.sleep(for: .seconds(6))
-            guard gen == flashGeneration else { return }
-            menuBarModeSymbol = nil
-        }
-    }
 
     // MARK: - Recording pipeline
 

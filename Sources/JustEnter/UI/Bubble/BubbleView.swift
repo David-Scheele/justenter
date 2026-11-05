@@ -35,15 +35,13 @@ struct BubbleView: View {
                 WaveformBars(recorder: appState.recorder)
                     .frame(width: 46, height: 11)
             case .preparing:
-                Spinner()
-                    .frame(width: 10, height: 10)
+                TypingDots()
                 Text(appState.preparingStatus)
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.7))
                     .lineLimit(1)
             case .transcribing, .enhancing:
-                Spinner()
-                    .frame(width: 10, height: 10)
+                TypingDots()
                     .frame(width: 46)
             case .done:
                 Image(systemName: "checkmark")
@@ -178,22 +176,26 @@ struct WaveformBars: View {
     }
 }
 
-/// Small rotating arc spinner for every waiting state.
-struct Spinner: View {
+/// Slack-style typing indicator: three dots bouncing in sequence,
+/// used for every waiting state (loading, transcribing, rewriting).
+struct TypingDots: View {
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
-            let angle = timeline.date.timeIntervalSinceReferenceDate
-                .truncatingRemainder(dividingBy: 1.0) * 360
-            Circle()
-                .trim(from: 0, to: 0.72)
-                .stroke(
-                    AngularGradient(
-                        gradient: Gradient(colors: [.white.opacity(0), .white]),
-                        center: .center
-                    ),
-                    style: StrokeStyle(lineWidth: 2.2, lineCap: .round)
-                )
-                .rotationEffect(.degrees(angle))
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 3.5) {
+                ForEach(0..<3, id: \.self) { index in
+                    // ~1.1s cycle, staggered so the bounce ripples left to right.
+                    let phase = (t / 1.1) * 2 * .pi - Double(index) * 0.75
+                    let bounce = max(0, sin(phase))
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 4.5, height: 4.5)
+                        .opacity(0.35 + 0.65 * bounce)
+                        .offset(y: -3.5 * bounce)
+                }
+            }
+            .frame(height: 12, alignment: .bottom)
+            .offset(y: 2)
         }
     }
 }
