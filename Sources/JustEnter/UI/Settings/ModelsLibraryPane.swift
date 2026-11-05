@@ -33,6 +33,7 @@ struct ModelsLibraryPane: View {
 
     private static let voiceEntries: [Entry] = [
         Entry(id: "apple", name: "Apple Speech", kind: .voice, speed: 5, accuracy: 4, sizeLabel: "built-in", builtIn: true, note: "Streams live, managed by macOS"),
+        Entry(id: "parakeet-ultra", name: "Parakeet Ultra", kind: .voice, speed: 5, accuracy: 5, sizeLabel: "~1 GB", builtIn: false, note: "NVIDIA TDT, 25 languages — manually installed"),
         Entry(id: "tiny", name: "Whisper Tiny", kind: .voice, speed: 5, accuracy: 1, sizeLabel: "75 MB", builtIn: false, note: nil),
         Entry(id: "base", name: "Whisper Base", kind: .voice, speed: 5, accuracy: 2, sizeLabel: "145 MB", builtIn: false, note: nil),
         Entry(id: "small", name: "Whisper Small", kind: .voice, speed: 4, accuracy: 3, sizeLabel: "465 MB", builtIn: false, note: nil),
@@ -238,6 +239,9 @@ struct ModelsLibraryPane: View {
             if entry.builtIn {
                 return settings.speechEngine == .apple
             }
+            if entry.id == "parakeet-ultra" {
+                return settings.speechEngine == .parakeet
+            }
             return settings.speechEngine == .whisper && settings.whisperModel == entry.id
         case .language:
             if entry.builtIn {
@@ -251,6 +255,7 @@ struct ModelsLibraryPane: View {
         if entry.builtIn { return true }
         switch entry.kind {
         case .voice:
+            if entry.id == "parakeet-ultra" { return ParakeetEngine.isInstalled }
             return WhisperEngine.isInstalled(entry.id)
         case .language:
             return installedOllama?.contains(where: { $0.name == entry.id }) ?? false
@@ -262,6 +267,8 @@ struct ModelsLibraryPane: View {
         case .voice:
             if entry.builtIn {
                 settings.speechEngine = .apple
+            } else if entry.id == "parakeet-ultra" {
+                settings.speechEngine = .parakeet
             } else {
                 settings.speechEngine = .whisper
                 settings.whisperModel = entry.id
@@ -312,7 +319,11 @@ struct ModelsLibraryPane: View {
     private func delete(_ entry: Entry) {
         switch entry.kind {
         case .voice:
-            WhisperEngine.deleteModel(entry.id)
+            if entry.id == "parakeet-ultra" {
+                ParakeetEngine.deleteModel()
+            } else {
+                WhisperEngine.deleteModel(entry.id)
+            }
         case .language:
             Task {
                 try? await LocalAIService.ollamaDelete(model: entry.id)

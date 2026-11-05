@@ -492,6 +492,8 @@ final class AppState: ObservableObject {
             engine = AppleSpeechEngine()
         case .whisper:
             engine = WhisperEngine(modelName: settings.whisperModel)
+        case .parakeet:
+            engine = ParakeetEngine()
         }
         engines[key] = engine
         return engine

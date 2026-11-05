@@ -17,12 +17,14 @@ enum AIBackend: String, CaseIterable, Identifiable {
 enum SpeechEngineKind: String, Codable, CaseIterable, Identifiable {
     case apple
     case whisper
+    case parakeet
 
     var id: String { rawValue }
     var label: String {
         switch self {
         case .apple: return "Apple Speech (on-device)"
         case .whisper: return "Whisper (local model)"
+        case .parakeet: return "Parakeet Ultra (local model)"
         }
     }
 }
